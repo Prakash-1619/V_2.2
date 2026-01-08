@@ -5,6 +5,24 @@ import pickle
 import plotly.express as px
 import ast
 
+
+import os
+import streamlit as st
+
+# GitHub info
+github_user = st.secrets["github"]["username"]
+github_token = st.secrets["github"]["token"]
+repo_name = st.secrets["github"]["repo"]
+branch = st.secrets["github"]["branch"]
+
+# Git remote URL with token
+repo_url = f"https://{github_token}@github.com/{github_user}/{repo_name}.git"
+
+# Setup remote
+os.system("git remote remove origin")  # remove old remote if exists
+os.system(f"git remote add origin {repo_url}")
+os.system(f"git checkout -B {branch}")  # ensure branch exists
+
 # ============================================================
 # PAGE CONFIG
 # ============================================================
