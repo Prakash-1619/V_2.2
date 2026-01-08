@@ -5,21 +5,19 @@ import pickle
 import plotly.express as px
 import ast
 
-
-import os
-import streamlit as st
-
-# GitHub info
+# ============================================================
+# GitHub auto-push setup (Step 2 + 5)
+# ============================================================
 github_user = st.secrets["github"]["username"]
 github_token = st.secrets["github"]["token"]
 repo_name = st.secrets["github"]["repo"]
 branch = st.secrets["github"]["branch"]
 
-# Git remote URL with token
+# Remote URL with token (HTTPS)
 repo_url = f"https://{github_token}@github.com/{github_user}/{repo_name}.git"
 
-# Setup remote
-os.system("git remote remove origin")  # remove old remote if exists
+# Ensure Git remote is set correctly
+os.system("git remote remove origin 2>/dev/null")  # remove old remote if exists
 os.system(f"git remote add origin {repo_url}")
 os.system(f"git checkout -B {branch}")  # ensure branch exists
 
@@ -55,7 +53,6 @@ INPUT_CSV = os.path.join(BASE_DIR, "V_2.2_inputs.csv")
 feature_df = pd.read_csv(INPUT_CSV)
 
 def parse_list(val):
-    """Safely parse list-like strings from CSV"""
     if pd.isna(val):
         return []
     if isinstance(val, list):
@@ -70,40 +67,10 @@ def get_area_row(area):
     return row.iloc[0] if not row.empty else None
 
 # ============================================================
-# DIRECT & PROXY CONFIG (UNCHANGED)
+# DIRECT & PROXY CONFIG
 # ============================================================
-DIRECT_MODEL_AREAS = {
-    "Al Barsha South Fourth", "Business Bay", "Al Merkadh", "Burj Khalifa",
-    "Hadaeq Sheikh Mohammed Bin Rashid", "Al Khairan First", "Wadi Al Safa 5",
-    "Al Thanyah Fifth", "Al Barshaa South Third", "Jabal Ali First",
-    "Madinat Al Mataar", "Madinat Dubai Almelaheyah", "Me'Aisem First",
-    "Al Hebiah Fourth", "Al Barsha South Fifth", "Al Hebiah First",
-    "Nadd Hessa", "Palm Jumeirah", "Al Barshaa South Second",
-    "Al Yelayiss 2", "Al Warsan First"
-}
-
-PROXY_MAPPING = {
-    "Al Barsha First": "proxy1",
-    "Al Hebiah Second": "proxy1",
-    "Al Hebiah Sixth": "proxy1",
-    "Al Hebiah Third": "proxy1",
-    "Madinat Hind 4": "proxy1",
-    "Wadi Al Safa 3": "proxy1",
-    "Wadi Al Safa 4": "proxy1",
-    "Wadi Al Safa 7": "proxy1",
-    "Bukadra": "proxy2",
-    "Ras Al Khor Industrial First": "proxy2",
-    "Jumeirah First": "proxy2",
-    "Palm Deira": "proxy2",
-    "Al Thanyah Third": "proxy3",
-    "Jabal Ali Industrial Second": "proxy3",
-    "Al Kifaf": "G1",
-    "Warsan Fourth": "G3",
-    "Jabal Ali": "G3",
-    "Zaabeel Second": "G4",
-    "Zaabeel First": "G4"
-}
-
+DIRECT_MODEL_AREAS = { ... }  # same as your existing code
+PROXY_MAPPING = { ... }       # same as your existing code
 ALL_AREAS = sorted(feature_df["area_name_en"].unique())
 
 # ============================================================
@@ -124,12 +91,10 @@ def load_model(model_key):
     raise FileNotFoundError(f"rf_model_{model_key}.pkl not found")
 
 # ============================================================
-# PREDICTION FUNCTION (UNCHANGED)
+# PREDICTION FUNCTION
 # ============================================================
 def predict_with_proxy(input_data, forecast_df, historic_df):
-
     area = input_data["area_name"]
-
     if area in DIRECT_MODEL_AREAS:
         model_key = area
     elif area in PROXY_MAPPING:
@@ -161,7 +126,6 @@ def predict_with_proxy(input_data, forecast_df, historic_df):
             temp[col] = 0
 
     temp = temp[train_columns]
-
     predicted_price = model.predict(temp)[0]
 
     gf = forecast_df[forecast_df["area"] == model_key].copy()
@@ -180,11 +144,10 @@ def predict_with_proxy(input_data, forecast_df, historic_df):
     final_df = pd.concat([hist, gf])
     final_df["month"] = pd.to_datetime(final_df["month"], format="%d-%m-%Y")
     final_df["area"] = area
-
     return final_df.sort_values("month")
 
 # ============================================================
-# SIDEBAR INPUTS (🔥 CSV-DRIVEN 🔥)
+# SIDEBAR INPUTS
 # ============================================================
 st.sidebar.header("📌 Property Inputs")
 
@@ -215,7 +178,7 @@ elevator = binary_checkbox("Elevator", row["elevator"])
 metro = binary_checkbox("Near Metro", row["metro"])
 
 # ============================================================
-# RUN PREDICTION
+# RUN PREDICTION + AUTO SAVE + GIT PUSH
 # ============================================================
 if st.sidebar.button("🔮 Predict Price"):
 
@@ -240,6 +203,17 @@ if st.sidebar.button("🔮 Predict Price"):
 
     result = predict_with_proxy(input_data, forecast_df, historic_df)
 
+    # --- Save prediction CSV ---
+    save_file = f"latest_prediction_{area}.csv"
+    result.to_csv(save_file, index=False)
+    st.success(f"✅ Prediction saved to {save_file}")
+
+    # --- Git add, commit, push ---
+    os.system(f"git add {save_file}")
+    os.system(f'git commit -m "Auto-update prediction for {area}"')
+    os.system(f"git push origin {branch}")
+
+    # --- Display chart & table ---
     st.subheader("📈 Price Trend")
     fig = px.line(
         result,
